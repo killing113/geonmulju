@@ -91,6 +91,9 @@ svg{max-width:100%;height:auto}
 .share .hd{color:#F2B01E;font-family:'Jua';text-align:center;font-size:15px;letter-spacing:.04em;padding:2px 0 8px}
 .share .in{background:var(--card);border-radius:14px;padding:14px;text-align:center}
 .share .in .av{width:140px;margin:6px auto 0;border:2px solid var(--line);border-radius:18px;overflow:hidden;line-height:0}
+.room{display:flex;gap:8px;align-items:center;margin-top:14px}
+.room input{flex:1;min-width:0;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:var(--ink)}
+.room label{font-family:'Jua';font-size:16px;flex:none}
 .share hr{border:0;border-top:1.5px dashed #D9C9A8;margin:12px 0}
 </style>
 </head>
@@ -104,6 +107,10 @@ function fmt(n){n=Math.round(n);const neg=n<0;n=Math.abs(n);let s;
   if(n>=10000){const e=Math.floor(n/10000),m=Math.floor((n%10000)/100)*100;s=e+'억'+(m?' '+m.toLocaleString()+'만':'');}
   else s=n.toLocaleString()+'만';
   return (neg?'-':'')+s;}
+function hash32(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19;}h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return (h^=h>>>16)>>>0;}
+function rng(seedStr){let a=hash32(seedStr);return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gaussR(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function shuffleR(a,r){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 const pct=x=>(x>=0?'+':'')+x.toFixed(0)+'%';
 
 /* ===================== 데이터 ===================== */
@@ -315,8 +322,8 @@ const MILE=[[10000,'순자산 1억을 넘겼다'],[100000,'아파트를 샀다']
 const FLAVOR=[['코인 단타로 한몫 챙겼다',.12],['리딩방에 물려서 울상이다',-.12],['회사에서 승진했다',.05],['차를 바꿨다. 통장이 얇아졌다',-.06],['부업이 대박 났다',.1],['전세사기를 당할 뻔했다',-.04]];
 function initRivals(s){s.rivals=Object.keys(CH).filter(k=>k!==s.ch).map(k=>{const c=CH[k];return{ch:k,nw:c.cash+c.gold-c.debt,income:c.income,expense:c.expense,ms:0,down:false};});}
 function stepRivals(s,r,news){
-  s.rivals.forEach(v=>{const m=RMIX[v.ch],nm=CH[v.ch].name;
-    const ret=(m.s*r.rs+m.c*r.rc+m.r*r.rr+m.g*r.rg)/100+gauss()*.04;
+  s.rivals.forEach(v=>{const m=RMIX[v.ch],nm=CH[v.ch].name,q=s.rr[v.ch],chance=p=>q()<p,rnd=(a,b)=>a+q()*(b-a),pick=a=>a[Math.floor(q()*a.length)];
+    const ret=(m.s*r.rs+m.c*r.rc+m.r*r.rr+m.g*r.rg)/100+gaussR(q)*.04;
     if(v.nw>0)v.nw*=1+Math.max(-.6,ret);
     v.income*=1+rnd(.02,.07); v.nw+=v.income-v.expense; if(v.ch==='jw'&&chance(.3))v.nw+=Math.max(600,v.nw*.07);
     if(v.ch==='sh'&&!v.down&&chance(.06+s.turn*.004)){v.down=true;v.nw*=.5;v.income=3000;v.expense=2200;news.push('💥 승훈네 그룹이 부도났다. 승훈이 단톡방에서 조용해졌다.');}
@@ -341,22 +348,25 @@ function bjEnd(){const s=S,b=s.bj;if(!b)return;const pv=cval(b.p);if(pv<=21)whil
 function addProp(s,id,paid){const p=PROPS.find(x=>x.id===id),v=p.price*s.reIdx;s.props.push({id,name:p.name,icon:p.icon,v,y:p.y,buy:paid||v});}
 function propPrice(s,p){return (p.id==='bld'?p.price:p.price*s.reIdx)*(s.ch==='jw'?.85:1);}
 
-function newGame(ch){
-  const c=CH[ch];
+let ROOM='';
+function newGame(ch,code){
+  const c=CH[ch]; code=(code||'').trim().toUpperCase().slice(0,12);
+  const seed=code?'room:'+code:'solo:'+Math.random()+':'+Date.now(), r=rng(seed), keys=Object.keys(REG), tw=keys.reduce((a,k)=>a+REG[k].w,0);
+  const plan=[]; for(let i=0;i<YEARS;i++){let x=r()*tw;const reg=keys.find(k=>(x-=REG[k].w)<0)||'flat';const others=keys.filter(k=>k!==reg);
+    plan.push({reg,u:r(),alt:others[Math.floor(r()*others.length)],ni:r(),z:[gaussR(r),gaussR(r),gaussR(r),gaussR(r)],ce:r()<.45});}
+  const gOrder=shuffleR(G,r), ceOrder=shuffleR(CE[ch],rng(seed+':'+ch)), rr={}; Object.keys(CH).forEach(k=>rr[k]=rng(seed+':rival:'+k));
   S={ch,turn:1,age:25,cash:c.cash,stock:0,coin:0,gold:c.gold,props:[],debt:c.debt,income:c.income,expense:c.expense,
-     reIdx:1,flags:{},scams:0,used:{},gauge:ch==='sh'?8:0,collapsed:false,last:null,hist:[],mix:{cash:0,stock:0,coin:0,re:0},over:null,gb:{left:3,count:0,net:0,msg:'',win:null},pension:0,bj:null,bjLast:null,tier:0};
+     reIdx:1,flags:{},scams:0,used:{},gauge:ch==='sh'?8:0,collapsed:false,last:null,hist:[],mix:{cash:0,stock:0,coin:0,re:0},over:null,gb:{left:3,count:0,net:0,msg:'',win:null},pension:0,bj:null,bjLast:null,tier:0,code,plan,gOrder,ceOrder,rr};
   S.tier=tierOf(nw(S)); initRivals(S);
   S.hist.push(nw(S)); TAB='inv'; setupTurn(S);
 }
 function setupTurn(s){
-  const keys=Object.keys(REG); let t=keys.reduce((a,k)=>a+REG[k].w,0), r=R()*t;
-  s.regime=keys.find(k=>(r-=REG[k].w)<0)||'flat';
-  const acc=s.ch==='jh'?.92:.72;
-  const hint=chance(acc)?s.regime:pick(keys.filter(k=>k!==s.regime));
-  s.news=pick(REG[hint].news);
+  const P=s.plan[s.turn-1]; s.regime=P.reg;
+  const hint=P.u<(s.ch==='jh'?.92:.72)?P.reg:P.alt, nl=REG[hint].news;
+  s.news=nl[Math.floor(P.ni*nl.length)];
   const ok=e=>!s.used[e.id]&&e.who!==s.ch&&(!e.when||e.when(s));
-  const ce=CE[s.ch].filter(ok), ge=G.filter(ok);
-  let ev=(ce.length&&(chance(.45)||!ge.length))?pick(ce):pick(ge);
+  const ce=s.ceOrder.filter(ok), ge=s.gOrder.filter(ok);
+  let ev=(ce.length&&(P.ce||!ge.length))?ce[0]:ge[0];
   if(!ev) ev={id:'none',t:'평온한 한 해',d:'별일 없는 한 해다. 투자에 집중하자.',c:[{l:'좋아',f:()=>'무소식이 희소식.'}]};
   s.gb.left=3; s.gb.msg=''; s.gb.win=null; s.bjLast=null;
   s.used[ev.id]=1; s.event=ev; s.eventDone=false; s.result='';
@@ -392,7 +402,7 @@ function nextYear(){
   const g=REG[s.regime], notes=[], before=nw(s);
   const gross=Math.max(1,Math.max(0,s.cash)+s.stock+s.coin+s.gold+propSum(s));
   s.mix.cash+=(Math.max(0,s.cash)+s.gold)/gross; s.mix.stock+=s.stock/gross; s.mix.coin+=s.coin/gross; s.mix.re+=propSum(s)/gross;
-  const rs=g.s+gauss()*8, rc=Math.max(-92,g.c+gauss()*25), rr=g.r+gauss()*3, rg=g.g+gauss()*5;
+  const Z=s.plan[s.turn-1].z, rs=g.s+Z[0]*8, rc=Math.max(-92,g.c+Z[1]*25), rr=g.r+Z[2]*3, rg=g.g+Z[3]*5;
   s.stock*=1+rs/100; s.coin*=1+rc/100; s.gold*=1+rg/100; s.reIdx*=1+rr/100;
   let rent=0; const rrMine=rr+(s.ch==='jw'?4:0); s.props.forEach(p=>{p.v*=1+rrMine/100; rent+=p.v*p.y;});
   const rate=s.regime==='hike'?.07:s.regime==='liq'?.035:.05;
@@ -522,6 +532,8 @@ const T=(v,s)=>typeof v==='function'?v(s):v;
 function renderStart(){
   let best={}; try{for(const k in CH){const b=localStorage.getItem('hsj_best_'+k); if(b)best[k]=+b;}}catch(_){}
   let h=`<div class="title"><h1>흙수저에서<br><span>건물주</span>까지</h1><p>25살부터 45살까지, 50억 꼬마빌딩을 향한 20년</p></div>
+  <div class="room"><label for="room">🎟️ 방 코드</label><input id="room" maxlength="12" placeholder="비워두면 혼자 하기" value="${esc(ROOM).replace(/"/g,'&quot;')}" autocomplete="off"></div>
+  <p class="sm" style="margin-top:4px">친구들과 같은 코드를 넣으면 뉴스·시장·이벤트 순서가 똑같이 나와. 같은 판에서 실력 대결!</p>
   <div class="chars">`;
   for(const k of ['sh','jh','jw','jy']){const c=CH[k];
     h+=`<button class="ch" data-act="start" data-ch="${k}">${avatar(k)}
@@ -535,6 +547,7 @@ function renderStart(){
    <li>뉴스는 가끔 틀려. 몰빵은 신중하게!</li>
    <li>급하면 <b>도박</b> 탭도 있어. 한 방 역전… 아니면 한 방에 끝.</li>
    <li>나머지 세 친구도 같이 큰다. <b>순위</b>에서 밀리지 마!</li>
+   <li><b>방 코드</b> 대결: 시장은 같고, 이벤트 결과 운과 도박은 각자 달라.</li>
    <li><b>꼬마빌딩(50억)</b>을 사면 승리. 대출 50%를 끼면 25억으로도 가능.</li></ul></div>`;
   return h;
 }
@@ -543,7 +556,7 @@ function renderGame(){
   const s=S,c=CH[s.ch],n=nw(s),L=s.last;
   const mood=!L?'normal':L.delta>0?'happy':L.delta<-Math.abs(n)*.05?'sad':'normal';
   let h=`<div class="card"><div class="hud"><div class="av">${avatar(s.ch,mood,s.tier)}</div><div class="info">
-    <div class="row"><span class="j" style="font-size:18px">${c.name} · ${s.age}살</span><span class="sm">${s.turn} / ${YEARS}년 차</span></div>
+    <div class="row"><span class="j" style="font-size:18px">${c.name} · ${s.age}살</span><span class="sm">${s.code?'🎟️ '+esc(s.code)+' · ':''}${s.turn} / ${YEARS}년 차</span></div>
     <div class="nw">${fmt(n)}원</div>
     <div class="bar"><i style="width:${Math.max(0,Math.min(100,n/GOAL*100))}%"></i></div>
     <div class="row sm"><span>🏠 ${TIERS[s.tier]} 거주</span><span>목표 50억</span></div></div></div>
@@ -607,10 +620,10 @@ function chart(hist){
   const pts=hist.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="순자산 그래프"><line x1="${p}" x2="${W-p}" y1="${Y(0)}" y2="${Y(0)}" stroke="#D9C9A8" stroke-dasharray="4 4"/><polyline points="${pts}" fill="none" stroke="#1F8A5B" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(hist.length-1)}" cy="${Y(hist[hist.length-1])}" r="5" fill="#F2B01E" stroke="#2B2118" stroke-width="2"/></svg>`;
 }
-function resultText(){const s=S,e=s.over;return `[흙수저에서 건물주까지]\n${CH[s.ch].name}(${CH[s.ch].role}) → ${e.t}\n최종 순자산 ${fmt(e.nw)}원 · ${s.age}살 · 친구 중 ${e.place}등\n투자 성향: ${e.type}`;}
+function resultText(){const s=S,e=s.over;return `[흙수저에서 건물주까지]${s.code?' 🎟️ 방 '+s.code:''}\n${CH[s.ch].name}(${CH[s.ch].role}) → ${e.t}\n최종 순자산 ${fmt(e.nw)}원 · ${s.age}살 · 친구 중 ${e.place}등\n투자 성향: ${e.type}`;}
 function renderEnd(){
   const s=S,e=s.over,c=CH[s.ch];
-  return `<div class="share"><div class="hd">★ 흙수저에서 건물주까지 ★</div><div class="in">
+  return `<div class="share"><div class="hd">★ 흙수저에서 건물주까지 ★${s.code?'<br>🎟️ 방 코드 '+esc(s.code):''}</div><div class="in">
     <div class="sm">${c.name} · ${c.role} · ${s.age}살</div><div class="j" style="font-size:30px;line-height:1.2">${e.t}</div>
     <div class="av">${avatar(s.ch,e.mood,s.tier)}</div>
     <p style="margin-top:10px;font-size:14px">${esc(e.m)}</p>
@@ -632,7 +645,7 @@ if(typeof document!=='undefined'){
   document.addEventListener('click',ev=>{
     const b=ev.target.closest('[data-act]'); if(!b||b.disabled)return;
     const a=b.dataset.act; let top=false;
-    if(a==='start'){newGame(b.dataset.ch);top=true;}
+    if(a==='start'){const el=document.getElementById('room');ROOM=el?el.value.trim().toUpperCase():'';newGame(b.dataset.ch,ROOM);top=true;}
     else if(a==='choose')choose(+b.dataset.i);
     else if(a==='buy')buy(b.dataset.k,+b.dataset.f);
     else if(a==='sell')sell(b.dataset.k,+b.dataset.f);
@@ -646,7 +659,7 @@ if(typeof document!=='undefined'){
     else if(a==='buyprop'){buyProp(b.dataset.id,b.dataset.loan==='1');top=!!S.over;}
     else if(a==='sellprop')sellProp(+b.dataset.i);
     else if(a==='next'){nextYear();top=true;}
-    else if(a==='again'){newGame(S.ch);top=true;}
+    else if(a==='again'){newGame(S.ch,S.code);top=true;}
     else if(a==='home'){S=null;top=true;}
     else if(a==='copy'){
       const t=resultText();
