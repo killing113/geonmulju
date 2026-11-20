@@ -232,6 +232,7 @@ function home(){
   <div class="card"><div class="lb">벌칙 종류</div><div class="seg"><button class="${MODE==='drink'?'on':''}" data-a="mode" data-m="drink">🍺 술 벌칙</button><button class="${MODE==='dare'?'on':''}" data-a="mode" data-m="dare">😜 노알콜 벌칙</button></div></div>
   <button class="big" data-a="rnd">🎲 아무 게임이나 시작</button>
   <div class="card" style="margin-top:12px"><div class="lb">게임 고르기</div><div class="gs">${GAMES.map(g=>`<button class="g" data-a="game" data-id="${g.id}"><i>${g.i}</i><b>${g.n}</b><small>${g.d}</small></button>`).join('')}</div></div>
+  <a href="live.html" style="display:block;text-align:center;color:#FFD25E;margin-top:14px;font-size:14px">📱 각자 폰으로 동시에 하기 →</a>
   <button class="back" data-a="reset">벌칙 횟수 초기화</button>`;
   return h;
 }
