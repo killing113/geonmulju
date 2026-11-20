@@ -94,6 +94,27 @@ svg{max-width:100%;height:auto}
 .room{display:flex;gap:8px;align-items:center;margin-top:14px}
 .room input{flex:1;min-width:0;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:var(--ink)}
 .room label{font-family:'Jua';font-size:16px;flex:none}
+.ult{display:block;width:100%;margin-top:10px;border:2px solid var(--line);border-radius:12px;background:linear-gradient(90deg,#FFD25E,#FF9E7A);padding:8px 10px;text-align:left;box-shadow:2px 3px 0 var(--line);font-size:13px}
+.ult b{font-family:'Jua';font-weight:400;font-size:17px;display:block}
+.ult:disabled{background:#E5DCCB;box-shadow:none;opacity:.6}
+.mute{position:fixed;top:10px;right:10px;z-index:30;width:38px;height:38px;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:17px;box-shadow:2px 2px 0 var(--line)}
+.fx{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
+.fx span{position:absolute;font-size:28px;opacity:0}
+.fx.rise span{bottom:-40px;animation:rise 1.4s ease-out forwards}
+.fx.fall span{top:-40px;animation:fall 1.8s ease-in forwards}
+@keyframes rise{0%{opacity:0;transform:translateY(0) scale(.6)}15%{opacity:1}100%{opacity:0;transform:translateY(-75vh) scale(1.2) rotate(20deg)}}
+@keyframes fall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:.9;transform:translateY(110vh) rotate(540deg)}}
+.shake{animation:shake .5s}
+@keyframes shake{0%,100%{transform:translateX(0)}15%{transform:translateX(-9px) rotate(-.6deg)}30%{transform:translateX(8px) rotate(.6deg)}45%{transform:translateX(-6px)}60%{transform:translateX(5px)}80%{transform:translateX(-2px)}}
+.pop{animation:pop .45s}
+@keyframes pop{0%{transform:scale(.7)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+.emb{font-size:54px;line-height:1.1}
+.band{border-radius:10px;padding:4px 10px;display:inline-block;font-size:12px;font-weight:700;color:#fff;margin-bottom:6px}
+.dg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.dg div{border:2px solid var(--line);border-radius:10px;background:#fff;text-align:center;padding:6px 2px;font-size:11px;line-height:1.25}
+.dg div.lk{background:#EDE4D2;color:var(--mute);border-style:dashed}
+.dg i{display:block;font-style:normal;font-size:22px}
+@media (prefers-reduced-motion:reduce){.fx{display:none}.shake,.pop{animation:none}}
 .share hr{border:0;border-top:1.5px dashed #D9C9A8;margin:12px 0}
 </style>
 </head>
@@ -313,6 +334,16 @@ jy:[
 
 /* ===================== 게임 로직 ===================== */
 let S=null, TAB='inv';
+const ULT={sh:{n:'아빠 카드',d:'현금 2억 즉시 지급. 대신 그룹 위기 지수 +20'},jh:{n:'리서치 풀가동',d:'올해와 내년 시장을 정확히 알아낸다'},jw:{n:'급매 소환',d:'다음에 사는 부동산 40% 할인 (빌딩은 20%)'},jy:{n:'금고 개방',d:'아버지 금고에서 금을 꺼낸다 (최소 1억)'}};
+const ENDS=[['owner','🏙️','건물주','#1F8A5B'],['fire','🏝️','파이어족','#E0892B'],['home','🏠','내 집 마련','#3B6FE0'],['normal','💼','평범한 직장인','#6B7A8A'],['soil','🥄','여전히 흙수저','#8A6B4A'],['bankrupt','💸','파산','#E5484D'],['hogu','🤡','전설의 호구','#9B59B6'],['gamble','🎰','도박 중독','#C2185B']];
+function getEnds(){try{return JSON.parse(localStorage.getItem('hsj_ends')||'[]');}catch(_){return [];}}
+function useUlt(){
+  const s=S; if(!s||s.ult||s.over)return; s.ult=true;
+  if(s.ch==='sh'){ if(s.collapsed){s.cash+=8000;s.ultMsg='카드는 정지됐다. 대신 숨겨둔 시계 컬렉션을 팔았다. +8,000만.';} else{s.cash+=20000;s.gauge=Math.min(100,s.gauge+20);s.ultMsg='"아빠, 이번이 진짜 마지막이야." 2억이 입금됐다. 그룹 위기 지수 +20.';} }
+  else if(s.ch==='jh'){const n=s.plan[s.turn];s.ultMsg='밤새 리포트를 팠다. 올해는 확실히 \''+REG[s.regime].name+'\''+(n?', 내년은 \''+REG[n.reg].name+'\' 장이다.':' 장이다.');}
+  else if(s.ch==='jw'){s.disc=true;s.ultMsg='단골 중개사에게 전화를 돌렸다. 다음에 사는 부동산 한 채가 40% 할인된다! (빌딩은 20%)';}
+  else{const a=Math.max(10000,s.gold*.6);s.gold+=a;s.ultMsg='아버지가 금고 열쇠를 주셨다. 금 '+fmt(a)+'원어치가 재고에 추가됐다.';}
+}
 const propSum=s=>s.props.reduce((a,p)=>a+p.v,0);
 const nw=s=>s.cash+s.stock+s.coin+s.gold+propSum(s)+(s.pension||0)-s.debt;
 const TIERS=['반지하','오피스텔','아파트','한강뷰 펜트하우스'];
@@ -346,7 +377,7 @@ function bjEnd(){const s=S,b=s.bj;if(!b)return;const pv=cval(b.p);if(pv<=21)whil
   else m='딜러 승. '+fmt(b.bet)+'원을 잃었다.';
   s.cash+=pay;s.gb.net+=pay-b.bet;s.gb.win=pay>=b.bet;s.gb.msg='🃏 '+m+' (나 '+pv+' : 딜러 '+dv+')';s.bjLast={p:b.p,d:b.d};s.bj=null;}
 function addProp(s,id,paid){const p=PROPS.find(x=>x.id===id),v=p.price*s.reIdx;s.props.push({id,name:p.name,icon:p.icon,v,y:p.y,buy:paid||v});}
-function propPrice(s,p){return (p.id==='bld'?p.price:p.price*s.reIdx)*(s.ch==='jw'?.85:1);}
+function propPrice(s,p){return (p.id==='bld'?p.price:p.price*s.reIdx)*(s.ch==='jw'?.85:1)*(s.disc?(p.id==='bld'?.8:.6):1);}
 
 let ROOM='';
 function newGame(ch,code){
@@ -356,7 +387,7 @@ function newGame(ch,code){
     plan.push({reg,u:r(),alt:others[Math.floor(r()*others.length)],ni:r(),z:[gaussR(r),gaussR(r),gaussR(r),gaussR(r)],ce:r()<.45});}
   const gOrder=shuffleR(G,r), ceOrder=shuffleR(CE[ch],rng(seed+':'+ch)), rr={}; Object.keys(CH).forEach(k=>rr[k]=rng(seed+':rival:'+k));
   S={ch,turn:1,age:25,cash:c.cash,stock:0,coin:0,gold:c.gold,props:[],debt:c.debt,income:c.income,expense:c.expense,
-     reIdx:1,flags:{},scams:0,used:{},gauge:ch==='sh'?8:0,collapsed:false,last:null,hist:[],mix:{cash:0,stock:0,coin:0,re:0},over:null,gb:{left:3,count:0,net:0,msg:'',win:null},pension:0,bj:null,bjLast:null,tier:0,code,plan,gOrder,ceOrder,rr};
+     reIdx:1,flags:{},scams:0,used:{},gauge:ch==='sh'?8:0,collapsed:false,last:null,hist:[],mix:{cash:0,stock:0,coin:0,re:0},over:null,gb:{left:3,count:0,net:0,msg:'',win:null},pension:0,bj:null,bjLast:null,tier:0,code,plan,gOrder,ceOrder,rr,ult:false,ultMsg:'',disc:false};
   S.tier=tierOf(nw(S)); initRivals(S);
   S.hist.push(nw(S)); TAB='inv'; setupTurn(S);
 }
@@ -368,7 +399,7 @@ function setupTurn(s){
   const ce=s.ceOrder.filter(ok), ge=s.gOrder.filter(ok);
   let ev=(ce.length&&(P.ce||!ge.length))?ce[0]:ge[0];
   if(!ev) ev={id:'none',t:'평온한 한 해',d:'별일 없는 한 해다. 투자에 집중하자.',c:[{l:'좋아',f:()=>'무소식이 희소식.'}]};
-  s.gb.left=3; s.gb.msg=''; s.gb.win=null; s.bjLast=null;
+  s.gb.left=3; s.gb.msg=''; s.gb.win=null; s.bjLast=null; s.ultMsg='';
   s.used[ev.id]=1; s.event=ev; s.eventDone=false; s.result='';
 }
 function canChoose(s,c){return !(c.n&&s.cash<c.n)&&!(c.ok&&!c.ok(s));}
@@ -378,7 +409,7 @@ function sell(k,f){const a=S[k]*f; if(a<=0)return; S[k]-=a; S.cash+=a; if(S[k]<1
 function buyProp(id,loan){
   const s=S,p=PROPS.find(x=>x.id===id),price=propPrice(s,p),need=loan?price/2:price;
   if(s.cash<need)return;
-  s.cash-=need; if(loan)s.debt+=price/2;
+  s.cash-=need; if(loan)s.debt+=price/2; s.disc=false;
   if(id==='bld'){s.props.push({id,name:p.name,icon:p.icon,v:price,y:p.y});s.hist.push(nw(s));finish('owner');return;}
   addProp(s,id,price);
 }
@@ -447,6 +478,7 @@ function finish(type){
   const sh={cash:m.cash/t,stock:m.stock/t,coin:m.coin/t,re:m.re/t};
   e.type=s.gb.count>=8?'타짜형 🎲':s.scams>=2?'팔랑귀형 👂':sh.coin>.3?'야수의 심장형 🦁':sh.re>.4?'부동산 불패형 🏠':sh.stock>.4?'정석 장투형 📈':sh.cash>.6?'현금 수호자형 🏦':'분산투자 밸런스형 ⚖️';
   e.nw=n; e.rank=ranking(s); e.place=e.rank.findIndex(x=>x.me)+1; s.tier=tierOf(n); s.over=e;
+  try{const es=getEnds(); if(!es.includes(e.k)){es.push(e.k);localStorage.setItem('hsj_ends',JSON.stringify(es));e.isNew=true;}}catch(_){}
   try{const key='hsj_best_'+s.ch,b=+localStorage.getItem(key)||-Infinity; if(n>b)localStorage.setItem(key,String(Math.round(n)));}catch(_){}
 }
 
@@ -541,12 +573,15 @@ function renderStart(){
       <div class="pk">${c.perk}</div>
       <div class="df">난이도 ${'★'.repeat(c.diff)}${'☆'.repeat(4-c.diff)}</div>
       ${best[k]!==undefined?`<div class="sm">최고 기록 ${fmt(best[k])}</div>`:''}</button>`;}
-  h+=`</div><div class="card how" style="margin-top:16px"><h3 style="font-size:18px;margin-bottom:6px">하는 법 (한 판 5분)</h3><ul>
+  const es=getEnds();
+  h+=`</div><div class="card" style="margin-top:16px"><div class="row"><span class="j" style="font-size:18px">📖 엔딩 도감</span><span class="sm">${ENDS.filter(e=>es.includes(e[0])).length} / ${ENDS.length}</span></div><div class="dg">${ENDS.map(e=>es.includes(e[0])?`<div><i>${e[1]}</i>${e[2]}</div>`:`<div class="lk"><i>❓</i>???</div>`).join('')}</div></div>`;
+  h+=`<div class="card how"><h3 style="font-size:18px;margin-bottom:6px">하는 법 (한 판 5분)</h3><ul>
    <li>1턴 = 1년. 매년 <b>뉴스</b>를 보고 올해 시장을 예측해.</li>
    <li><b>이벤트</b>를 하나 고르고, 주식·코인·부동산에 돈을 굴려.</li>
    <li>뉴스는 가끔 틀려. 몰빵은 신중하게!</li>
    <li>급하면 <b>도박</b> 탭도 있어. 한 방 역전… 아니면 한 방에 끝.</li>
    <li>나머지 세 친구도 같이 큰다. <b>순위</b>에서 밀리지 마!</li>
+   <li>캐릭터마다 한 판에 한 번 쓰는 <b>⚡필살기</b>가 있어.</li>
    <li><b>방 코드</b> 대결: 시장은 같고, 이벤트 결과 운과 도박은 각자 달라.</li>
    <li><b>꼬마빌딩(50억)</b>을 사면 승리. 대출 50%를 끼면 25억으로도 가능.</li></ul></div>`;
   return h;
@@ -561,6 +596,8 @@ function renderGame(){
     <div class="bar"><i style="width:${Math.max(0,Math.min(100,n/GOAL*100))}%"></i></div>
     <div class="row sm"><span>🏠 ${TIERS[s.tier]} 거주</span><span>목표 50억</span></div></div></div>
     <div class="stats"><div>연수입<b>${fmt(s.income)}</b></div><div>생활비<b>${fmt(s.expense)}</b></div><div>빚<b class="${s.debt>0?'down':''}">${fmt(s.debt)}</b></div></div>`;
+  h+=`<button class="ult" data-act="ult" ${s.ult?'disabled':''}><b>⚡ 필살기: ${ULT[s.ch].n}${s.ult?' (사용함)':''}</b>${ULT[s.ch].d} · 한 판에 한 번</button>`;
+  if(s.ultMsg) h+=`<div class="res">⚡ ${esc(s.ultMsg)}</div>`;
   if(s.ch==='sh'&&!s.collapsed) h+=`<div style="margin-top:10px"><div class="row sm"><span>⚠️ 그룹 위기 지수</span><span>${Math.round(s.gauge)}</span></div><div class="bar danger"><i style="width:${Math.min(100,s.gauge)}%"></i></div></div>`;
   if(L){
     const ch=(l,v)=>`<span class="chip">${l} <span class="${v>=0?'up':'down'}">${pct(v)}</span></span>`;
@@ -607,7 +644,7 @@ function renderGame(){
       h+=`<div style="background:${bg};border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:13.5px"><b>작년 시세 <span class="${r>=0?'up':'down'}">${pct(r)}</span></b> · ${tx}</div>`;}
     s.props.forEach((p,i)=>{const d=p.v-(p.buy||p.v);h+=`<div class="as"><div class="row"><span class="nm">${p.icon} ${p.name} <span class="sm">보유 · 월세 연 ${fmt(p.v*p.y)}</span></span><span class="v">${fmt(p.v)}</span></div><div class="mini two"><button class="mb sell" data-act="sellprop" data-i="${i}">팔기</button><span class="sm" style="align-self:center;text-align:center">산 가격 대비 <b class="${d>=0?'up':'down'}">${d>=0?'+':''}${fmt(d)}</b></span></div></div>`;});
     PROPS.forEach(p=>{const pr=propPrice(s,p);
-      h+=`<div class="as"><div class="row"><span class="nm">${p.icon} ${p.name}${s.ch==='jw'?' <span class="chip" style="font-size:11px">임장 할인 15%</span>':''}${p.id==='bld'?' <span class="sm">← 사면 승리!</span>':` <span class="sm">월세 연 ${fmt(pr*p.y)}</span>${L?` <span class="sm ${L.rr>=0?'up':'down'}">${pct(L.rr)}</span>`:''}`}</span><span class="v">${fmt(pr)}</span></div>
+      h+=`<div class="as"><div class="row"><span class="nm">${p.icon} ${p.name}${s.ch==='jw'?' <span class="chip" style="font-size:11px">임장 할인 15%</span>':''}${s.disc?' <span class="chip up" style="font-size:11px">⚡ 급매 할인</span>':''}${p.id==='bld'?' <span class="sm">← 사면 승리!</span>':` <span class="sm">월세 연 ${fmt(pr*p.y)}</span>${L?` <span class="sm ${L.rr>=0?'up':'down'}">${pct(L.rr)}</span>`:''}`}</span><span class="v">${fmt(pr)}</span></div>
       <div class="mini two"><button class="mb buy" data-act="buyprop" data-id="${p.id}" data-loan="0" ${s.cash>=pr?'':'disabled'}>현금으로 사기</button><button class="mb buy" data-act="buyprop" data-id="${p.id}" data-loan="1" ${s.cash>=pr/2?'':'disabled'}>대출 50% (${fmt(pr/2)} 필요)</button></div></div>`;});
   }
   h+=`</div><button class="quit" data-act="home">처음으로</button>`;
@@ -624,11 +661,14 @@ function resultText(){const s=S,e=s.over;return `[흙수저에서 건물주까�
 function renderEnd(){
   const s=S,e=s.over,c=CH[s.ch];
   return `<div class="share"><div class="hd">★ 흙수저에서 건물주까지 ★${s.code?'<br>🎟️ 방 코드 '+esc(s.code):''}</div><div class="in">
-    <div class="sm">${c.name} · ${c.role} · ${s.age}살</div><div class="j" style="font-size:30px;line-height:1.2">${e.t}</div>
+    <div class="band" style="background:${(ENDS.find(x=>x[0]===e.k)||[])[3]||'#2B2118'}">엔딩 No.${ENDS.findIndex(x=>x[0]===e.k)+1} / ${ENDS.length}${e.isNew?' · NEW!':''}</div>
+    <div class="emb pop">${(ENDS.find(x=>x[0]===e.k)||[])[1]||''}</div>
+    <div class="j" style="font-size:30px;line-height:1.2">${e.t}</div><div class="sm">${c.name} · ${c.role} · ${s.age}살</div>
     <div class="av">${avatar(s.ch,e.mood,s.tier)}</div>
     <p style="margin-top:10px;font-size:14px">${esc(e.m)}</p>
     <div class="nw" style="margin-top:8px">${fmt(e.nw)}원</div>
     <div class="type">${e.type}</div>
+    <div class="sm" style="margin-top:8px">필살기 '${ULT[s.ch].n}' ${s.ult?'사용':'미사용'}</div>
     <hr><div style="text-align:left">${rankHtml(e.rank)}</div>
     <hr>${chart(s.hist)}<div class="sm">25살 → ${s.age}살 순자산${s.pension>0?' · 연금 '+fmt(s.pension)+' 포함':''}${s.gb.count?' · 도박 '+s.gb.count+'판 '+(s.gb.net>=0?'+':'')+fmt(s.gb.net):''}</div>
   </div></div>
@@ -639,17 +679,45 @@ function renderEnd(){
 }
 function render(){
   const app=document.getElementById('app');
-  app.innerHTML=!S?renderStart():S.over?renderEnd():renderGame();
+  app.innerHTML=(!S?renderStart():S.over?renderEnd():renderGame())+`<button class="mute" data-act="mute" aria-label="소리 켜기/끄기">${MUTE?'🔇':'🔊'}</button>`;
+}
+let MUTE=false, AC=null;
+const SEQ={click:[[520,.05,'square']],up:[[784,.08,'square'],[1175,.12,'square']],down:[[233,.14,'sawtooth'],[156,.22,'sawtooth']],win:[[659,.08,'square'],[880,.08,'square'],[1319,.16,'square']],fan:[[523,.12,'square'],[659,.12,'square'],[784,.12,'square'],[1047,.3,'square']],ult:[[392,.07,'triangle'],[523,.07,'triangle'],[784,.07,'triangle'],[1047,.2,'triangle']]};
+function sfx(k){
+  if(MUTE)return;
+  try{const A=window.AudioContext||window.webkitAudioContext; if(!A)return; AC=AC||new A(); if(AC.state==='suspended')AC.resume();
+    let t=AC.currentTime+.01; (SEQ[k]||[]).forEach(([f,d,ty])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d+.02);t+=d*.9;});
+  }catch(_){}
+}
+function fx(kind){
+  const set={up:['💰','🪙','💵'],down:['📉','💸'],confetti:['🎉','🎊','⭐','💰','🏙️'],ult:['⚡','✨']}[kind]; if(!set)return;
+  const L=document.createElement('div'); L.className='fx '+(kind==='confetti'||kind==='down'?'fall':'rise');
+  const n=kind==='confetti'?30:kind==='down'?10:14;
+  for(let i=0;i<n;i++){const sp=document.createElement('span');sp.textContent=set[i%set.length];sp.style.left=(Math.random()*94)+'%';sp.style.animationDelay=(Math.random()*.6)+'s';sp.style.fontSize=(20+Math.random()*18)+'px';L.appendChild(sp);}
+  document.body.appendChild(L); setTimeout(()=>L.remove(),2800);
+}
+function shake(){const a=document.getElementById('app');a.classList.remove('shake');void a.offsetWidth;a.classList.add('shake');setTimeout(()=>a.classList.remove('shake'),600);}
+function post(a,pv){
+  if(a==='mute')return;
+  if(!S||!pv){sfx('click');return;}
+  if(S.over&&!pv.over){const k=S.over.k; if(['owner','fire','home'].includes(k)){fx('confetti');sfx('fan');}else if(k==='normal')sfx('up');else{shake();fx('down');sfx('down');} return;}
+  if(a==='next'){const L=S.last; if(!L)return; if(L.delta<0){if(L.rr<=-10||L.rs<=-15||L.rc<=-40||S.collapsed&&!pv.col)shake();fx('down');sfx('down');}else{fx('up');sfx('up');} return;}
+  if(a==='gamble'||a==='bjhit'||a==='bjstand'||a==='bjstart'){if(S.bj){sfx('click');return;} if(S.gb.net>pv.net){fx('up');sfx('win');}else if(S.gb.net<pv.net){shake();sfx('down');}else sfx('click');return;}
+  if(a==='ult'){if(!pv.ult){fx('ult');sfx('ult');}return;}
+  if(a==='buyprop'){if(S.props.length>pv.np)sfx('win');return;}
+  sfx('click');
 }
 if(typeof document!=='undefined'){
   document.addEventListener('click',ev=>{
     const b=ev.target.closest('[data-act]'); if(!b||b.disabled)return;
-    const a=b.dataset.act; let top=false;
+    const a=b.dataset.act; let top=false; const pv=S&&{over:!!S.over,net:S.gb.net,ult:S.ult,np:S.props.length,col:S.collapsed};
     if(a==='start'){const el=document.getElementById('room');ROOM=el?el.value.trim().toUpperCase():'';newGame(b.dataset.ch,ROOM);top=true;}
     else if(a==='choose')choose(+b.dataset.i);
     else if(a==='buy')buy(b.dataset.k,+b.dataset.f);
     else if(a==='sell')sell(b.dataset.k,+b.dataset.f);
     else if(a==='repay')repay();
+    else if(a==='ult')useUlt();
+    else if(a==='mute')MUTE=!MUTE;
     else if(a==='bet')BET=+b.dataset.f;
     else if(a==='gamble')gamble(b.dataset.id,BET);
     else if(a==='bjstart')bjStart(BET);
@@ -666,11 +734,11 @@ if(typeof document!=='undefined'){
       try{navigator.clipboard.writeText(t).then(()=>{b.textContent='복사했어!';},()=>{b.textContent='복사가 막혀 있어';});}catch(_){b.textContent='복사가 막혀 있어';}
       return;
     }
-    render(); if(top)window.scrollTo(0,0);
+    render(); if(top)window.scrollTo(0,0); post(a,pv);
   });
   render();
 }
-if(typeof module!=='undefined')module.exports={bjStart,bjHit,bjEnd,cval,ranking,gamble,newGame,choose,buy,sell,buyProp,sellProp,repay,nextYear,canChoose,nw,avatar,get S(){return S;},PROPS,CH};
+if(typeof module!=='undefined')module.exports={useUlt,bjStart,bjHit,bjEnd,cval,ranking,gamble,newGame,choose,buy,sell,buyProp,sellProp,repay,nextYear,canChoose,nw,avatar,get S(){return S;},PROPS,CH};
 </script>
 </body>
 </html>
